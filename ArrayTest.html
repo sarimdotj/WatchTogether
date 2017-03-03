@@ -1,0 +1,33 @@
+<html>
+
+<head>
+<script type='text/javascript'>
+	var rooms = {};
+
+	rooms['room1'] = {};
+	rooms['room2'] = {};
+
+	rooms['room1']['sarim'] = "sarimId";
+	//rooms['room1']['ahmed'] = "ahmedId";
+	rooms['room2']['osama'] = "osamaId";
+
+
+	for(x in rooms)
+	{
+		for(y in rooms[x])
+		{
+			if(rooms[x][y] == "sarimId")
+				console.log(y);
+		}
+	}
+
+	console.log(rooms);
+
+</script>
+
+</head>
+
+<body>
+</body>
+
+</html>

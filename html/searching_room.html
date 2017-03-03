@@ -1,0 +1,30 @@
+<html>
+<head>
+	<script src="/socket.io/socket.io.js"></script>
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+</head>
+
+Loading...
+<script>
+	var socket = io.connect();
+
+	var roomId = window.location.pathname.replace('/','');
+	console.log(roomId);
+	socket.emit('joinTheRoom',{"roomId" : roomId});
+
+	socket.on('OnClientRegisteredToRoom',function(){
+		console.log("searching page got the server response that you have joined the room");
+		window.location.href="http://localhost:3000/html/create room.html";
+	});
+
+	socket.on('connect',function(){
+		alert("Connected to server");
+	});
+
+</script>
+
+<body>
+	
+
+</body>
+</html>

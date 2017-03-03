@@ -1,0 +1,77 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- The root of this file is actually hosted by nodejs server so it is pysically located in root/html/index.html but virtually located at ./ means here -->
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script src="/socket.io/socket.io.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="/css/style.css"/>
+<title>Untitled Document</title>
+
+<script>
+	//var socket = require("socket.io-client");
+	
+	var socket = io.connect();
+	
+	socket.on('roomRegisterResponse',function(data){
+		//alert("Got the room registered");
+		//socket.emit('roomRegisteredFromIndexPage',{"roomId":data.roomId});
+		//window.location.href="http://localhost:3000/html/create room.html?id="+ data.roomId;
+		//adding temporarily
+		window.location.href="http://localhost:3000/html/create room.html";
+	});
+	
+
+	socket.on('roomRegisteredForCreateRoomNotify',function(data){
+		//console.log(data.roomId);
+	});
+
+	socket.on('connect',function(){
+		//alert('This socket is connected to server');
+	});
+</script>
+
+<script type="text/javascript">
+function registerRoom(){
+	socket.emit("createRoom",{'message':'Call from client to create room'});
+}
+</script>
+</head>
+
+<body>
+<div class="back-img">
+ <div class="wrapper">
+    <div class="main">  
+      <div class="logo">
+       <img src="/images/logo.png" />
+      </div>
+           <div class="type">
+            <p>Create a room.  Embed your favorite videos.
+               Share the room with your friends and family.
+               Chat and watch<span> togethr </span>sp anywhere, in real time!</p>
+           </div>
+           <!--<a href="/html/create room.html">--><button type="button" name="createRoomBtn" id="createRoomBtn" class="button" onclick='registerRoom();'>Create Room</button> 
+    </div>
+ </div>
+<div class="footer">
+ <div class="wrapper">
+   <div class="nav">
+         <ul>
+         	<!-- /html in each href is-->
+           <li><a href="/html/index.html">Home</a></li>
+           <li><a href="/html/contact us.html">Contact</a></li>
+           <li><a href="/html/privacy policy.html">Privacy Policy</a></li>
+           <li><a href="/html/Terms of Service.html">Terms of Service</a></li>
+           <li><a href="/html/Copyright.html">Copyright</a></li>
+           <li style="border-right:0"><a href="/html/faq.html">FAQ</a></li>
+         </ul>
+   </div>
+   <div class="copy">
+    <h1>© 2014 watchtogethr.com</h1>
+   </div>        
+ </div>
+</div>
+</div>
+</body>
+</html>

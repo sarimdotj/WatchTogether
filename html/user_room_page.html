@@ -1,0 +1,369 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="../css/style.css"/>
+<script src='/socket.io/socket.io.js'></script>
+<script src="http://f.vimeocdn.com/js/froogaloop2.min.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<title>Untitled Document</title>
+
+<script type="text/javascript">
+socket = io.connect();
+isPlayerReady = false;
+isNewlyJoined = true;
+playerState = 2;
+isVimeoPlayerReady = false;
+
+var tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+var firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+var player;
+
+socket.on('connect',function(){
+  isNewlyJoined = true;
+});
+
+function onYouTubePlayerAPIReady() {
+  //alert("api is ready");
+  var videoId= '';
+  //https://www.youtube.com/watch?v=lgMQrQL7akY
+  //var videoIdToAdd = '';
+  //videoIdToAdd = $('#videoLinkTxt').val();
+  //videoIdToAdd = videoIdToAdd.substr(videoIdToAdd.lastIndexOf('v=')+2,11);
+
+  player = new YT.Player('videoArea',{
+    //videoId: 'XMIhL63KPxw',
+    //videoId:videoIdToAdd,
+    //videoId: videoId,
+    playerVars:{
+      'controls':1,
+      'autoplay':0
+    },
+    events:{
+      'onReady': onPlayerReady,
+      'onStateChange': onPlayerStateChange
+    }
+  });
+
+//Start from here sarim
+//mayBe isNewlyJoined will be the whole solution for the problem
+  //if(isNewlyJoined === true){
+    //alert("Newly joined");
+    //socket.emit('onJoinDuringFromClient',{'roomId':roomId});
+  //}
+}
+
+
+function onPlayerReady(event){
+  //alert('player is ready');
+  isPlayerReady = true;
+  
+  var roomId = $('#urlTextBox').val();
+  roomId = roomId.substr(roomId.lastIndexOf('/')+1,9);
+
+  //Request from new client to join the video at the same time.
+  socket.emit('onJoinDuringFromClient',{'roomId':roomId});
+  event.target.clearVideo();
+}
+
+function onPlayerStateChange(event){
+  playerState = event.data;
+}
+</script>
+</head>
+<script>
+	me = prompt('Enter your nick','Noname');
+
+	
+	/*socket.on('roomRegisteredResponse',function(data){
+		alert('it worked');
+	});
+	*/
+	var roomId = window.location.pathname.replace('/','');
+	socket.emit('joinTheRoom',{"roomId" : roomId , "username": me});
+
+	//on receiving message publically from server(from any client or server itself)
+	socket.on('OnPublicMessageServerResponse',function(data){
+		//alert(data.username + ' sent ' + data.message);
+		var meClass= '';
+		if(data.username == me){
+			meClass = "class='me_color'";
+		}
+		$('#main3').append("<div class='message'><h1 " + meClass + "><span>"+data.username+ ":</span>"+ data.message + "</h1><p>1:13 AM</p></div>");
+    $('#main3').scrollTop(document.getElementById('main3').scrollHeight);
+	});
+
+  //Youtube Set video: call from server
+  socket.on('onVideoUrlSetFromServer',function(data){
+    //alert("Got youtube video set response server");
+    $('#player1').hide();
+    $('#player1').attr('src','');
+    $('#videoArea').show();
+    //alert(data.videoId);
+    player.cueVideoById(data.videoId);
+    isNewlyJoined = false;
+  });
+
+  //Vimeo Set video: call from server
+  socket.on('onVimeoVideoUrlSetFromServer',function(data){
+    if(isVimeoPlayerReady == false){
+      $('#videoArea').hide();
+      $('#player1').show();
+      //alert('got vimeo video set response from creator');
+      $('#player1').attr('src','https://player.vimeo.com/video/' + data.videoId +'?api=1&player_id=player1');
+      $('#player1').attr('style',"");
+      isVimeoPlayerReady = true;
+    }
+    
+    var iframe = $('#player1')[0];
+    playerVimeo = $f(iframe);
+
+
+    playerVimeo.addEvent('ready', function() {  
+        isVimeoPlayerReady = true;
+        if(typeof data.duration != "undefined"){
+          //alert("In the middle of vimeo video cycle response from server");
+          playerVimeo.api('seekTo',data.duration);
+          if(data.isPaused == 0){
+            playerVimeo.api('play');
+          }else if(data.isPaused == 1){
+            playerVimeo.api('pause');
+          }
+        }
+        //socket.emit('onVimeoVideoUrlSetFromCreator',{'roomId':roomId , 'videoId': vimeoVideoToAdd });
+        //playerVimeo.addEvent('play',onVimeoPlay);
+        //playerVimeo.addEvent('pause', onVimeoPause);
+        //playerVimeo.addEvent('finish', onVimeoFinish);
+        //playerVimeo.addEvent('playProgress', onVimeoPlayProgress);
+    });
+
+    isNewlyJoined = false;
+  });
+
+  //Vimeo Play Video: call from server
+  socket.on('onVimeoPlayVideoFromServer',function(data){
+    playerVimeo.api('seekTo',data.duration);
+    playerVimeo.api('play');
+  });
+
+  //Youtube Play video: call from server
+  socket.on('onPlayVideoFromServer',function(data){
+    if(isPlayerReady === true){
+      if(data.isPaused == 0){//changed this at 2:15 am
+        player.seekTo(data.duration); //changed this at 2:15 am
+        player.playVideo();
+      }//changed this at 2:15 am
+    }
+  });
+
+
+  //Vimeo Pause Video: call from server
+  socket.on('onVimeoPauseVideoFromServer',function(){
+      playerVimeo.api('pause');
+  });
+
+  //Youtube Pause Video: call from server
+  socket.on('onPauseVideoFromServer',function(data){
+    if(isPlayerReady === true){
+      if(data.isPaused == 1){//changed this at 2:15 am
+        player.seekTo(data.duration);//changed this at 2:15 am
+        player.pauseVideo();
+        //setTimeout(function(){//changed this at 2:15 am
+          //player.pauseVideo();//changed this at 2:15 am
+        //},2000);//changed this at 2:15 am
+      }//changed this at 2:15 am
+    }
+  });
+  
+  //no need for this now i think
+	socket.on('OnClientRegisteredToRoom',function(){
+    //Request from new client to join the video at the same time.
+    socket.emit('onVimeoJoinDuringFromClient',{'roomId':roomId});
+    isVimeoPlayerReady = false;
+		//console.log("searching page got the server response that you have joined the room");
+	});
+
+	$(document).ready(function(){
+	//Show the popup
+		$('#urlTextBox').val("localhost:3000/" + roomId);
+
+    if(typeof YT != "undefined"){
+      if(event.data == YT.PlayerState.PLAYING){
+        socket.emit('onPlayFromClient');
+      }
+      else if(event.data == YT.PlayerState.PAUSED){
+        socket.emit('onPauseFromClient');
+      }
+    }
+	});
+
+  //Vimeo: Duration reply from server if the client(me) joined during the video.
+  socket.on('onVimeoDurationResponseFromServer',function(data){
+      //player.loadVideoById(data.videoId,data.duration);
+      
+      //currently not in use for vimeo
+      /*player.cueVideoById(data.videoId);
+      player.seekTo(data.duration);
+      if(data.isPaused)
+      {
+        setTimeout(function(){
+          player.pauseVideo();
+        },3000);
+      }
+      */
+  });
+
+  //Youtube: Duration reply from server if the client(me) joined during the video.
+  socket.on('onDurationResponseFromServer',function(data){
+      //player.loadVideoById(data.videoId,data.duration);
+      player.cueVideoById(data.videoId);
+      player.seekTo(data.duration);
+      if(data.isPaused)
+      {
+        setTimeout(function(){
+          player.pauseVideo();
+        },3000);
+      }
+  });
+
+  socket.on('newRoomUserJoined',function(data){
+      //alert(data.username + " joined");
+      var usersOnline = 0;
+      $('#main4').empty();
+      for(var x in data.roomUsers){
+        console.log(x);
+        usersOnline++;
+        $('#main4').append("<div class='online'><a href='#'><img src='../images/green.png' />" + x + "</a></div>");
+      }
+      $('#users').html(usersOnline);
+      $('#main4').scrollTop(document.getElementById('main4').scrollHeight);
+      
+  });
+
+  console.log(socket);
+</script>
+
+<script type="text/javascript">
+function getParameterByName(name) {
+    name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+    var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+        results = regex.exec(location.search);
+    return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+}
+</script>
+
+<script>
+	$(function(){
+		$('#sendPublicMessageTxt').keyup(function(e){
+			if(e.keyCode == 13){
+				var roomId = $('#urlTextBox').val();
+				roomId = roomId.substr(roomId.lastIndexOf('/')+1,9);
+				
+				var username = me;
+				var message = $('#sendPublicMessageTxt').val();
+        $('#sendPublicMessageTxt').val('');
+				socket.emit('OnPublicMessageSend',{'message':message, 'username': username , 'roomId':roomId});
+
+			}
+		});
+	});
+</script>
+
+<body>
+	<div class="back-bg">
+		<div class="wrapper">
+			<div class="logo2" id='logo2'><img src="../images/logo.png" /></div>
+ 		</div>
+	</div>
+<div class="feed">    
+<a href="#"><img src="../images/feedback.png" /></a>
+</div>
+<script type="text/javascript">
+  $(function(){
+    $('#main3').scrollTop(document.getElementById('main3').scrollHeight);
+    
+    $('#overLappingDiv').click(function(){
+      alert("You are not allowed to control the video!");
+    });
+  });
+
+</script>
+<style>
+  #videoArea,
+  #overLappingDiv{
+    width:630px;
+    height:354px;
+    position : absolute;
+    top : 0;
+    left:0;
+  }
+
+  #overLappingDiv{
+    z-index: 10;
+  }
+</style>
+    	<div class="wrapper">
+                        
+                        <div class="create" id='create'>
+                             <h2>Room you joined</h2>
+                             <input id="urlTextBox" name="urlTextBox" type="text" placeholder=""  class="field"/>
+                        </div>
+                        <div class="clear" id='clear'></div>
+                        <div class="paste">
+                          <div id="customVideoDiv" style="position:relative;width:630px;height:354px">
+                            <div id='overLappingDiv' style='background-color:transparent'><font color="WHITE"> Sarim khan</font></div>
+                            <div id='videoArea' ></div>
+                            <iframe id="player1" width="630" height="354" frameborder="0" style='display:none;' onclick='sarimAjKar2();'></iframe>
+                          </div>
+                         <!--<iframe id='video' width='100%' height='320' src="https://www.youtube.com/embed/XMIhL63KPxw?enablejsapi=1&controls=0&autoplay=1&start=0"></iframe> -->
+                        </div>
+                        <div class="main2">
+                        <div class="red-bg">
+                             <h1>Click to HQ video and Fullscreen Features</h1>
+                             <a href="#"><img src="../images/drop.png" /></a>
+                        </div>
+                        <div class="section1">
+                         <div class="grey-bg">
+                             <img src="../images/private.png" />
+                             <h1>Private Chat</h1>
+                         </div>
+                         <div class="main3" id='main3'>
+                             
+                        </div>
+                        <div class="message-type">
+                         <input id='sendPublicMessageTxt' name='sendPublicMessageTxt' type="text" placeholder="Write here, then hit enter to send."  class="field"/>
+                        </div>
+                        </div>
+                        <div class="section2">
+                           <div class="grey-bg">
+                             <h1><span class="users" id="users">0</span>User(s) Online</h1>
+                         </div>
+                         <div class="main4" id='main4'>
+                           
+                         </div> 
+                        </div>
+                        </div>
+        </div>
+
+<div class="footer2">
+ <div class="wrapper">
+   <div class="nav">
+         <ul>
+           <li><a href="index.html">Home</a></li>
+           <li><a href="contact us.html">Contact</a></li>
+           <li><a href="privacy policy.html">Privacy Policy</a></li>
+           <li><a href="Terms of Service.html">Terms of Service</a></li>
+           <li><a href="Copyright.html">Copyright</a></li>
+           <li style="border-right:0"><a href="faq.html">FAQ</a></li>
+         </ul>
+   </div>
+   <div class="copy">
+    <h1>© 2014 watchtogethr.com</h1>
+   </div>        
+ </div>
+</div>
+</body>
+</html>

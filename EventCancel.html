@@ -1,0 +1,27 @@
+<html>
+<head>
+
+</head>
+
+<script type='text/javascript'>
+function cancelBubble(e) {
+ var evt = e ? e:window.event;
+ if (evt.stopPropagation)    evt.stopPropagation();
+ if (evt.cancelBubble!=null) evt.cancelBubble = true;
+}
+
+function showAlert(){
+	alert("hi");
+}
+
+function showAlert1(){
+	alert("hi1");
+}
+</script>
+
+<body>
+<form>
+<button onclick='showAlert();showAlert2();'>Click me</button>
+</form>
+</body>
+</html>

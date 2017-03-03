@@ -1,0 +1,398 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="../css/style.css"/>
+<script src='/socket.io/socket.io.js'></script>
+<script src="http://f.vimeocdn.com/js/froogaloop2.min.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<title>Untitled Document</title>
+
+<script type="text/javascript">
+socket = io.connect();
+
+
+
+var player;
+isAPIReady = false;
+isPlayerReady = false;
+isPlayerPaused = 1;
+isVimeoPlayerPaused = 1;
+
+function onYouTubePlayerAPIReady() {
+  //alert("api is ready");
+  //https://www.youtube.com/watch?v=lgMQrQL7akY
+  isAPIReady= true;
+
+  var videoIdToAdd = '';
+  videoIdToAdd = $('#videoLinkTxt').val();
+  videoIdToAdd = videoIdToAdd.substr(videoIdToAdd.lastIndexOf('v=')+2,11);
+  player = new YT.Player('videoArea',{
+    playerVars:{
+      'controls':1,
+    },
+    events:{
+      'onReady': onPlayerReady,
+      'onStateChange': onPlayerStateChange
+    }
+  });
+}
+
+function onPlayerReady(event){
+  //alert('player is ready');
+  //event.target.clearVideo();
+  isPlayerReady = true;
+  
+  //$('#videoLinkTxt').keyup(function(e){
+      //if(e.keyCode == 13){
+        var roomId =$('#urlTextBox').val();
+        roomId= roomId.substr(roomId.lastIndexOf('/')+1,9);
+        
+        var videoIdToAdd = '';
+        videoIdToAdd = $('#videoLinkTxt').val();
+        videoIdToAdd = videoIdToAdd.substr(videoIdToAdd.lastIndexOf('v=')+2,11);
+      
+        player.cueVideoById(videoIdToAdd);
+        //player.playVideo(); //tag: sarim you were here
+        setTimeout(function(){
+          player.pauseVideo();
+        },4000);
+
+      //}
+    //}); 
+}
+
+function onPlayerStateChange(event){
+  var roomId = $('#urlTextBox').val();
+  roomId = roomId.substr(roomId.lastIndexOf('/')+1,9);
+  //var duration = player.getCurrentTime();//changed this at 2:15 am
+  //socket.emit('onCreatorPlayerDurationChange',{'roomId':roomId, 'duration': duration , 'isPaused' : })//changed this at 2:15 am
+  if(event.data == YT.PlayerState.PLAYING){//Play Video: Call to server to inform clients to play video
+    isPlayerPaused = 0;//changed this at 2:15 am
+    var duration = player.getCurrentTime();
+    socket.emit('onCreatorPlayingStatus',{'roomId':roomId , 'duration': duration , 'isPaused':isPlayerPaused});//changed this at 2:15 am
+  }
+  else if(event.data == YT.PlayerState.PAUSED){//Pause Video: Call to server to inform clients to pause video
+    isPlayerPaused = 1 ;//changed this at 2:15 am
+    var duration = player.getCurrentTime();
+    socket.emit('onCreatorPausedStatus',{'roomId':roomId , 'duration':duration , 'isPaused': isPlayerPaused});//changed this at 2:15 am
+  }
+}
+
+$(document).ready(function(){
+  $("#videoLinkTxt").keyup(function(e){
+  if(e.keyCode == 13){
+    var roomId =$('#urlTextBox').val();
+    roomId= roomId.substr(roomId.lastIndexOf('/')+1,9);
+    //0 for youtube
+    //1 for vimeo
+    //>1 for nothing
+    playerType=2;
+    if($(this).val().indexOf('youtube') > -1) {
+      $('#player1').hide();
+      $('#videoArea').show();
+      playerType = 0;
+    }
+    else if($(this).val().indexOf('vimeo') > -1) {
+      $('#videoArea').hide();
+      $('#player1').show();
+      playerType = 1;
+    }
+    else playerType =2; 
+    
+    if(playerType == 0){
+      var tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      var firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag); 
+
+      var videoIdToAdd = '';
+      videoIdToAdd = $('#videoLinkTxt').val();
+      videoIdToAdd = videoIdToAdd.substr(videoIdToAdd.lastIndexOf('v=')+2,11);
+
+      player.cueVideoById(videoIdToAdd);
+      socket.emit('onVideoUrlSetFromCreator',{'roomId':roomId , 'videoId': videoIdToAdd }); 
+    }
+    else if(playerType == 1){
+      //alert("you added vimeo link");
+      var vimeoVideoToAdd = $(this).val();
+      vimeoVideoToAdd = vimeoVideoToAdd.substr(vimeoVideoToAdd.lastIndexOf('/')+1, vimeoVideoToAdd.length - vimeoVideoToAdd.lastIndexOf('/') +1);
+      //alert(vimeoVideoToAdd);
+      $('#player1').attr('src','https://player.vimeo.com/video/' + vimeoVideoToAdd +'?api=1&player_id=player1&autopause=0&color=0');
+      $('#player1').attr('style',"");
+
+      var iframe = $('#player1')[0];
+      playerVimeo = $f(iframe);
+      playerVimeo.addEvent('ready', function() {  
+            socket.emit('onVimeoVideoUrlSetFromCreator',{'roomId':roomId , 'videoId': vimeoVideoToAdd });
+            playerVimeo.addEvent('play',onVimeoPlay);
+            playerVimeo.addEvent('seek',onVimeoSeek);
+            playerVimeo.addEvent('pause', onVimeoPause);
+            playerVimeo.addEvent('finish', onVimeoFinish);
+            playerVimeo.addEvent('playProgress', onVimeoPlayProgress);
+      });
+    }
+  }
+});
+});
+
+  //Vimeo: Related to joining of user in the mid of playing that is after pressing enter key from the creator.
+  socket.on('onVimeoJoinDuringQueryFromServer',function(){
+    //if(isPlayerReady === true){
+      //alert("New user joined"); 
+      if($('#videoLinkTxt').val().indexOf('vimeo') > -1)
+      {
+        //alert('in onVimeoJoinDuringQueryFromServer creator');
+        var vimeoVideoToAdd = '';
+        vimeoVideoToAdd = $('#videoLinkTxt').val();
+        vimeoVideoToAdd = vimeoVideoToAdd.substr(vimeoVideoToAdd.lastIndexOf('/')+1, vimeoVideoToAdd.length - vimeoVideoToAdd.lastIndexOf('/') +1);
+
+        var roomId =$('#urlTextBox').val();
+        roomId= roomId.substr(roomId.lastIndexOf('/')+1,9);
+        playerVimeo.api('getCurrentTime',function(data,id){
+          socket.emit('onVimeoDurationReplyFromCreator',{'duration': data , 'videoId': vimeoVideoToAdd , 'roomId':roomId , 'isPaused': isVimeoPlayerPaused});  
+        });
+      }
+    //}
+  });
+
+function onVimeoPlay(id){
+  //alert(id + " vimeo video played");
+  //socket.emit('onVimeoPlayFromCreator');
+  var roomId =$('#urlTextBox').val();
+  roomId= roomId.substr(roomId.lastIndexOf('/')+1,9);
+
+  playerVimeo.api('getCurrentTime',function(value,id){
+      socket.emit('onVimeoCreatorPlayingStatus',{'roomId':roomId , 'duration': value , 'isPaused':0});//changed this at 2:15 am
+  });
+  
+  isVimeoPlayerPaused = 0;
+}
+
+function onVimeoPause(id){
+  var roomId =$('#urlTextBox').val();
+  roomId= roomId.substr(roomId.lastIndexOf('/')+1,9);
+
+  playerVimeo.api('pause');
+  socket.emit('onVimeoCreatorPausedStatus',{'roomId':roomId});
+
+  isVimeoPlayerPaused = 1;
+}
+
+function onVimeoSeek(data,id){
+  //alert(data.seconds);
+  //player.vimeo('seek',data.seco)
+}
+
+function onVimeoFinish(id){
+  alert("vimeo video finish");
+}
+
+function onVimeoPlayProgress(data,id){
+  //alert("video is played");
+  var roomId =$('#urlTextBox').val();
+  roomId= roomId.substr(roomId.lastIndexOf('/')+1,9);
+
+  var time1, time2 ;
+  time1= data.seconds;
+
+  console.log("time1: " + time1);
+  setTimeout(function(){
+    time2= data.seconds;
+    console.log('time2:' + time2);
+  },1000);
+
+  if((time2 - time1) > 2){
+    alert('seeked');
+  }
+}
+
+</script>
+</head>
+<script>
+
+	me = 'Admin';
+  
+	//on receiving message publically from server(from any client or server itself)
+	socket.on('OnPublicMessageServerResponse',function(data){
+		//alert(data.username + ' sent ' + data.message);
+		var meClass= '';
+		if(me == data.username){
+			meClass="class='me_color'";
+		}
+		$('#main3').append("<div class='message'><h1 " + meClass + "><span>"+data.username+ ":</span>"+ data.message + "</h1><p>1:13 AM</p></div>");
+
+    var chatDiv=document.getElementById('main3');
+		$('#main3').scrollTop(chatDiv.scrollHeight);
+	});
+
+	//adding temporarily
+	socket.on('YesWeRegisteredYourRoom',function(data){
+		$('#urlTextBox').val("localhost:3000/" + data.roomId);	
+	});
+
+	$(document).ready(function(){
+	//Show the popup
+		socket.emit('createRoomFromCreateRoomPage');
+		$('#urlTextBox').val("localhost:3000/" + getParameterByName('id'));
+
+    //If duration bar of video is moved
+    if(isPlayerReady == true){
+      var time1,time2;
+      time1 = player.getCurrentTime();
+      console.log(time1);
+      setInterval(function(){
+        time2= player.getCurrentTime();
+        console.log("time1: " + time1 + ",, time2: " + time2);
+        if((time2-time1)>2){
+          alert("dada hogaya");
+        }
+      },1000);
+    }
+	});
+	
+  //Related to joining of user in the mid of playing that is after pressing enter key from the creator.
+  socket.on('onJoinDuringQueryFromServer',function(){
+    //if(isPlayerReady === true){
+      //alert("New user joined");
+      var videoIdToAdd = '';
+      videoIdToAdd = $('#videoLinkTxt').val();
+      videoIdToAdd = videoIdToAdd.substr(videoIdToAdd.lastIndexOf('v=')+2,11);
+
+      var roomId =$('#urlTextBox').val();
+      roomId= roomId.substr(roomId.lastIndexOf('/')+1,9);
+      var myDuration = player.getCurrentTime();
+      socket.emit('onDurationReplyFromCreator',{'duration': myDuration , 'videoId': videoIdToAdd , 'roomId':roomId , 'isPaused': isPlayerPaused});
+    //}
+  });
+
+  //Server informs all peers if a new user joined to keep record at everyone.
+  socket.on('newRoomUserJoined',function(data){
+      var usersOnline = 0;
+      $('#main4').empty();
+      for(var x in data.roomUsers){
+        console.log(x);
+        usersOnline++;
+        $('#main4').append("<div class='online'><a href='#'><img src='../images/green.png' />" + x + "</a></div>");
+      }
+
+      $('#users').html('');
+      $('#users').html(usersOnline);
+      $('#main4').scrollTop(document.getElementById('main4').scrollHeight);
+      
+  });
+
+	socket.on('connect',function(){
+		//alert('socket connected t server');
+	});
+
+  //socket.on('onJoinDuringQueryFromServer',function(){
+    //socket.emit()
+  //});
+
+</script>
+
+<script type="text/javascript">
+function getParameterByName(name) {
+    name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+    var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+        results = regex.exec(location.search);
+    return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+}
+</script>
+
+<script>
+	$(function(){
+		$('#sendPublicMessageTxt').keyup(function(e){
+			if(e.keyCode == 13){
+				var roomId = $('#urlTextBox').val();
+				roomId = roomId.substr(roomId.lastIndexOf('/')+1,9);
+				
+				var message = $('#sendPublicMessageTxt').val();
+        $('#sendPublicMessageTxt').val('');
+				socket.emit('OnPublicMessageSend',{'message':message, 'username': 'Admin' , 'roomId':roomId});
+
+			}
+		});
+	});
+</script>
+<body>
+	<div class="back-bg">
+		<div class="wrapper">
+			<div class="logo2"><img src="../images/logo.png" /></div>
+ 		</div>
+	</div>
+<div class="feed">    
+<a href="#"><img src="../images/feedback.png" /></a>
+</div>
+<script type="text/javascript">
+  $(function(){
+    $('#main3').scrollTop(document.getElementById('main3').scrollHeight);
+    $('#main4').scrollTop(document.getElementById('main4').scrollHeight);
+  });
+</script>
+    	<div class="wrapper">
+                        <div class="create">
+                             <h2>Create New Room</h2>
+                             <input id="urlTextBox" name="urlTextBox" type="text" placeholder=""  class="field"/>
+                             <div class="link">
+                                  <ul>
+                                   <li><a href="#">New Video Link</a></li>
+                                   <li><a href="#">Dim Background</a></li>
+                                  </ul>
+                             </div>
+                        </div>
+                        <div class="clear"></div>
+                        <div class="paste">
+                         <input id="videoLinkTxt" name="videoLinkTxt" type="text" placeholder="Paste video link here and press enter key"  class="field"/>
+                         <div id='videoArea'></div>
+                         <iframe id="player1" width="630" height="354" frameborder="0" style="display:none;"></iframe>
+                         <!--<iframe id='video' width='100%' height='320' src="https://www.youtube.com/embed/XMIhL63KPxw?enablejsapi=1"></iframe> -->
+                        </div>
+                        <div class="main2">
+                        <div class="red-bg">
+                             <h1>Click to HQ video and Fullscreen Features</h1>
+                             <a href="#"><img src="../images/drop.png" /></a>
+                        </div>
+                        <div class="section1">
+                         <div class="grey-bg">
+                             <img src="../images/private.png" />
+                             <h1>Private Chat</h1>
+                         </div>
+                         <div class="main3" id='main3'>
+                             
+                        </div>
+                        <div class="message-type">
+                         <input id="sendPublicMessageTxt" name="sendPublicMessageTxt" type="text" placeholder="Write here, then hit enter to send."  class="field"/>
+                        </div>
+                        </div>
+                        <div class="section2">
+                           <div class="grey-bg">
+                             <h1><span class="users" id="users">1</span>User(s) Online</h1>
+                         </div>
+                         <div class="main4" id="main4">
+                           
+                         </div> 
+                        </div>
+                        </div>
+        </div>
+
+<div class="footer2">
+ <div class="wrapper">
+   <div class="nav">
+         <ul>
+           <li><a href="index.html">Home</a></li>
+           <li><a href="contact us.html">Contact</a></li>
+           <li><a href="privacy policy.html">Privacy Policy</a></li>
+           <li><a href="Terms of Service.html">Terms of Service</a></li>
+           <li><a href="Copyright.html">Copyright</a></li>
+           <li style="border-right:0"><a href="faq.html">FAQ</a></li>
+         </ul>
+   </div>
+   <div class="copy">
+    <h1>© 2014 watchtogethr.com</h1>
+   </div>        
+ </div>
+</div>
+</body>
+</html>
